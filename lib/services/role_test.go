@@ -193,6 +193,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 						DesktopClipboard:  types.NewBoolOption(true),
+						CreateHostUser:    types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -226,6 +227,7 @@ func TestRoleParse(t *testing.T) {
 						RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 						BPF:               apidefaults.EnhancedEvents(),
 						DesktopClipboard:  types.NewBoolOption(true),
+						CreateHostUser:    types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -295,6 +297,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(true),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						CreateHostUser:        types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -380,6 +383,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						CreateHostUser:        types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -452,6 +456,7 @@ func TestRoleParse(t *testing.T) {
 						DisconnectExpiredCert: types.NewBool(false),
 						BPF:                   apidefaults.EnhancedEvents(),
 						DesktopClipboard:      types.NewBoolOption(true),
+						CreateHostUser:        types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{

@@ -3215,15 +3215,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// execute this when process is asked to exit:
 	process.OnExit("proxy.shutdown", func(payload interface{}) {
 		rcWatcher.Close()
-		defer listeners.Close()
-		// Need to shut down this listener first, because
-		// in case of graceful shutdown, if tls server was not called
-		// the shutdown could be doing nothing, as server has not
-		// started tracking the listener first. It's ok to close listener
-		// several times.
-		if listeners.kube != nil {
-			listeners.kube.Close()
-		}
+		listeners.Close()
 		if asyncEmitter != nil {
 			warnOnErr(asyncEmitter.Close(), log)
 		}

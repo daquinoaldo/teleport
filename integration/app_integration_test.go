@@ -37,6 +37,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1017,6 +1018,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
 	rcConf.Apps.Enabled = false
+	rcConf.BreakerConfig = breaker.Config{
+		Trip: breaker.StaticTripper(false),
+	}
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1033,6 +1037,9 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = false
 	lcConf.Apps.Enabled = false
+	lcConf.BreakerConfig = breaker.Config{
+		Trip: breaker.StaticTripper(false),
+	}
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}

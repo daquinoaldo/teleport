@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -988,7 +987,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
-	rcConf.BreakerConfig = breaker.Config{Clock: p.clock, Trip: breaker.StaticTripper(false)}
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
@@ -1001,7 +999,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
-	lcConf.BreakerConfig = breaker.Config{Clock: p.clock, Trip: breaker.StaticTripper(false)}
 	if opts.leafConfig != nil {
 		opts.rootConfig(lcConf)
 	}
@@ -1072,7 +1069,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		p.root.mongoService,
 	}
 	rdConf.Clock = p.clock
-	rdConf.BreakerConfig = breaker.Config{Clock: p.clock, Trip: breaker.StaticTripper(false)}
 	p.root.dbProcess, p.root.dbAuthClient, err = p.root.cluster.StartDatabase(rdConf)
 	require.NoError(t, err)
 
@@ -1111,7 +1107,6 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	ldConf.Clock = p.clock
 	p.leaf.dbProcess, p.leaf.dbAuthClient, err = p.leaf.cluster.StartDatabase(ldConf)
-	ldConf.BreakerConfig = breaker.Config{Clock: p.clock, Trip: breaker.StaticTripper(false)}
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		p.leaf.dbProcess.Close()

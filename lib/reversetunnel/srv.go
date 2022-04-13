@@ -203,6 +203,8 @@ type Config struct {
 
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+
+	EnableCircuitBreaker bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

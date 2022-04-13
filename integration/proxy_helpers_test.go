@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -319,7 +318,6 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
-		config.BreakerConfig = breaker.Config{Trip: breaker.StaticTripper(false)}
 		return config
 	}
 }
@@ -339,7 +337,6 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.SSH.Enabled = true
 		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 		config.SSH.Labels = map[string]string{"env": "integration"}
-		config.BreakerConfig = breaker.Config{Trip: breaker.StaticTripper(false)}
 		return config
 	}
 }

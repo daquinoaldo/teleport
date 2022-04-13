@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -363,22 +364,40 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
 	defer cancel()
 
-	cb, err := breaker.New(c.c.BreakerConfig)
-	if err != nil {
-		return trace.Wrap(err)
+	unaryInterceptors := []grpc.UnaryClientInterceptor{
+		metadata.UnaryClientInterceptor,
+	}
+	streamInterceptors := []grpc.StreamClientInterceptor{
+		metadata.StreamClientInterceptor,
+	}
+
+	if c.c.EnableCircuitBreaker {
+		breakerConfig := breaker.Config{
+			Clock:         c.c.Clock,
+			Interval:      defaults.BreakerInterval,
+			RecoveryLimit: defaults.RecoveryLimit,
+			Trip:          breaker.RatioTripper(defaults.BreakerRatio, defaults.BreakerRatioMinExecutions),
+			IsSuccessful:  IsGrpcResponseSuccessful,
+		}
+
+		if err := breakerConfig.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cb, err := breaker.New(breakerConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		unaryInterceptors = append(unaryInterceptors, breaker.UnaryClientInterceptor(cb))
+		streamInterceptors = append(streamInterceptors, breaker.StreamClientInterceptor(cb))
 	}
 
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
-		grpc.WithChainUnaryInterceptor(
-			metadata.UnaryClientInterceptor,
-			breaker.UnaryClientInterceptor(cb),
-		),
-		grpc.WithChainStreamInterceptor(
-			metadata.StreamClientInterceptor,
-			breaker.StreamClientInterceptor(cb),
-		),
+		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+		grpc.WithChainStreamInterceptor(streamInterceptors...),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
 	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
@@ -485,8 +504,10 @@ type Config struct {
 	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
 	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
 	ALPNSNIAuthDialClusterName string
-	// BreakerConfig specifies the CircuitBreaker configuration to be used.
-	BreakerConfig breaker.Config
+	// Clock is used to control time for circuit breaker.
+	Clock clockwork.Clock
+	// EnableCircuitBreaker specifies if a CircuitBreaker should be used to apply backoff to clients
+	EnableCircuitBreaker bool
 }
 
 // IsGrpcResponseSuccessful determines whether the error provided should be ignored by the circuit breaker. This is
@@ -517,6 +538,9 @@ func IsHTTPResponseSuccessful(v interface{}, err error) bool {
 
 	switch t := v.(type) {
 	case *http.Response:
+		if t == nil {
+			return false
+		}
 		return t.StatusCode < http.StatusInternalServerError
 	default:
 		return true
@@ -546,26 +570,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}))
 	if !c.DialInBackground {
 		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
-	}
-
-	if c.BreakerConfig.Interval <= 0 {
-		c.BreakerConfig.Interval = defaults.BreakerInterval
-	}
-
-	if c.BreakerConfig.RecoveryLimit <= 0 {
-		c.BreakerConfig.RecoveryLimit = defaults.RecoveryLimit
-	}
-
-	if c.BreakerConfig.Trip == nil {
-		c.BreakerConfig.Trip = breaker.RatioTripper(defaults.BreakerRatio, defaults.BreakerRatioMinExecutions)
-	}
-
-	if c.BreakerConfig.IsSuccessful == nil {
-		c.BreakerConfig.IsSuccessful = IsGrpcResponseSuccessful
-	}
-
-	if err := c.BreakerConfig.CheckAndSetDefaults(); err != nil {
-		return err
 	}
 
 	return nil

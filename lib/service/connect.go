@@ -413,6 +413,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			EnableCircuitBreaker: process.Config.EnableCircuitBreaker,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -917,7 +918,8 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		BreakerConfig: process.Config.BreakerConfig,
+		Clock:                process.Clock,
+		EnableCircuitBreaker: process.Config.EnableCircuitBreaker,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -959,8 +961,9 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		BreakerConfig: process.Config.BreakerConfig,
-		DialOpts:      dialOpts,
+		Clock:                process.Clock,
+		EnableCircuitBreaker: process.Config.EnableCircuitBreaker,
+		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)

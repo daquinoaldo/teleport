@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/crypto/ssh"
@@ -260,8 +259,8 @@ type Config struct {
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
 
-	// BreakerConfig configures the auth client circuit breaker (used in tests).
-	BreakerConfig breaker.Config
+	// EnableCircuitBreaker configures the auth client to use a circuit breaker for backoff.
+	EnableCircuitBreaker bool
 }
 
 // ApplyToken assigns a given token to all internal services but only if token

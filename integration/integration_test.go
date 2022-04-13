@@ -41,7 +41,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -5698,8 +5697,6 @@ func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
 	cfg := service.MakeDefaultConfig()
 	cfg.Console = nil
 	cfg.Log = s.log
-	// disable circuit breaker for tests - timing related tests don't work well with it
-	cfg.BreakerConfig = breaker.Config{Trip: breaker.StaticTripper(false)}
 	return cfg
 }
 
@@ -5848,7 +5845,6 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
 	rcConf.SSH.Labels = map[string]string{"env": "integration"}
-	rcConf.BreakerConfig = breaker.Config{Trip: breaker.StaticTripper(false)}
 
 	// Make leaf cluster config.
 	lcConf := service.MakeDefaultConfig()
@@ -5860,7 +5856,6 @@ func TestTraitsPropagation(t *testing.T) {
 	lcConf.SSH.Enabled = true
 	lcConf.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
 	lcConf.SSH.Labels = map[string]string{"env": "integration"}
-	lcConf.BreakerConfig = breaker.Config{Trip: breaker.StaticTripper(false)}
 
 	// Create identical user/role in both clusters.
 	me, err := user.Current()

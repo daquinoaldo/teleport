@@ -36,7 +36,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -411,12 +410,6 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Log = i.log
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
-	tconf.BreakerConfig = breaker.Config{
-		Interval:      200 * time.Millisecond,
-		TrippedPeriod: 100 * time.Millisecond,
-		Clock:         tconf.Clock,
-		Trip:          breaker.StaticTripper(false),
-	}
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -656,12 +649,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
-	tconf.BreakerConfig = breaker.Config{
-		Interval:      200 * time.Millisecond,
-		TrippedPeriod: 100 * time.Millisecond,
-		Clock:         tconf.Clock,
-		Trip:          breaker.StaticTripper(false),
-	}
 
 	i.Config = tconf
 	return tconf, nil

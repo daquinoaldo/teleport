@@ -21,16 +21,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -69,12 +68,6 @@ func (m *mockServer) Addr() string {
 
 type ConfigOpt func(*Config)
 
-func WithBreakerConfig(breakCfg breaker.Config) ConfigOpt {
-	return func(config *Config) {
-		config.BreakerConfig = breakCfg
-	}
-}
-
 func WithConfig(cfg Config) ConfigOpt {
 	return func(config *Config) {
 		*config = cfg
@@ -89,11 +82,6 @@ func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client,
 		},
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-		BreakerConfig: breaker.Config{
-			Interval:      time.Second,
-			RecoveryLimit: 1,
-			Trip:          breaker.StaticTripper(false),
 		},
 	}
 
@@ -437,10 +425,6 @@ func TestNewDialBackground(t *testing.T) {
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
 		},
-		BreakerConfig: breaker.Config{
-			Interval: time.Second,
-			Trip:     breaker.StaticTripper(false),
-		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
@@ -657,100 +641,86 @@ func TestGetResources(t *testing.T) {
 	}
 }
 
-func TestClient_NotAllErrorsTripBreaker(t *testing.T) {
-	t.Parallel()
-	srv := startMockServer(t)
-	clock := clockwork.NewFakeClock()
-
-	tripped := make(chan struct{}, 1)
-	standby := make(chan struct{}, 1)
-
-	clt, err := srv.NewClient(context.Background(), WithBreakerConfig(breaker.Config{
-		Clock:         clock,
-		Interval:      time.Second,
-		RecoveryLimit: 1,
-		Trip:          breaker.ConsecutiveFailureTripper(0),
-		OnTripped: func() {
-			tripped <- struct{}{}
+func TestIsGrpcResponseSuccessful(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		assertion require.BoolAssertionFunc
+	}{
+		{
+			name:      "nil error",
+			assertion: require.True,
 		},
-		OnStandBy: func() {
-			standby <- struct{}{}
+		{
+			name:      "codes.Canceled error",
+			err:       status.Error(codes.Canceled, ""),
+			assertion: require.False,
 		},
-	}))
-	require.NoError(t, err)
+		{
+			name:      "codes.Unknown error",
+			err:       status.Error(codes.Unknown, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "codes.Unavailable error",
+			err:       status.Error(codes.Unavailable, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "codes.Unavailable error",
+			err:       status.Error(codes.DeadlineExceeded, ""),
+			assertion: require.False,
+		},
+		{
+			name:      "other error",
+			err:       trace.NotFound("not found"),
+			assertion: require.False,
+		},
+	}
 
-	returnBreakerToStandBy := func() {
-		ctx := context.Background()
-		// advance clock to enter recovering - next request will be blocked
-		clock.Advance(time.Hour)
-
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseServer,
-			Namespace:    defaults.Namespace,
-			Limit:        1,
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.assertion(t, IsGrpcResponseSuccessful(nil, tt.err))
 		})
-		require.Error(t, err)
-		require.ErrorIs(t, err, breaker.ErrRecoveryLimitExceeded)
+	}
+}
 
-		// advance clock to allow request
-		clock.Advance(time.Hour)
+func TestIsHTTPResponseSuccessful(t *testing.T) {
+	cases := []struct {
+		name      string
+		response  *http.Response
+		err       error
+		assertion require.BoolAssertionFunc
+	}{
+		{
+			name:      "nil",
+			assertion: require.False,
+		},
+		{
+			name:      "error",
+			err:       trace.NotFound(""),
+			assertion: require.False,
+		},
+		{
+			name:      "200",
+			response:  &http.Response{StatusCode: http.StatusOK},
+			assertion: require.True,
+		},
+		{
+			name:      "500",
+			response:  &http.Response{StatusCode: http.StatusBadGateway},
+			assertion: require.False,
+		},
+		{
+			name:      "404",
+			response:  &http.Response{StatusCode: http.StatusNotFound},
+			assertion: require.True,
+		},
+	}
 
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseServer,
-			Namespace:    defaults.Namespace,
-			Limit:        1,
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.assertion(t, IsHTTPResponseSuccessful(tt.response, tt.err))
 		})
-		require.NoError(t, err)
-
-		select {
-		case <-standby:
-		case <-time.After(time.Minute):
-			t.Fatal("timeout waiting to return to standby")
-		}
-	}
-
-	_, err = clt.ListResources(context.Background(), proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseServer,
-		Namespace:    defaults.Namespace,
-		Limit:        1,
-	})
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseServer,
-		Namespace:    defaults.Namespace,
-		Limit:        1,
-	})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-	case <-time.After(time.Minute):
-		t.Fatal("timeout waiting to be tripped")
-	}
-
-	returnBreakerToStandBy()
-
-	_, err = clt.AddMFADeviceSync(context.Background(), &proto.AddMFADeviceSyncRequest{})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-		t.Fatal("expected breaker to remain in standby")
-	default:
-	}
-
-	srv.Stop()
-
-	_, err = clt.CreateAppSession(context.Background(), types.CreateAppSessionRequest{})
-	require.Error(t, err)
-
-	select {
-	case <-tripped:
-	case <-time.After(time.Minute):
-		t.Fatal("timeout waiting to be tripped")
 	}
 }

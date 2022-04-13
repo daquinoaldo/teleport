@@ -130,8 +130,8 @@ const (
 	NoLoginPrefix = "-teleport-nologin-"
 )
 
-// ReservedConnectorNames lists the names of the system-reserved connectors.
-var ReservedConnectorNames = []string{
+// SystemConnectors lists the names of the system-reserved connectors.
+var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
 }
